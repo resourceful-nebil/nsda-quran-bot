@@ -7,8 +7,8 @@ name: Daily Quran post
 
 on:
   schedule:
-    # 20:00 UTC = 23:00 (11:00 PM) in UTC+3 (e.g. Addis Ababa). GitHub cron is UTC-only.
-    - cron: "0 20 * * *"
+    # 20:30 UTC = 23:30 (11:30 PM) in UTC+3 (e.g. Addis Ababa). GitHub cron is UTC-only.
+    - cron: "30 20 * * *"
   workflow_dispatch:
 
 concurrency:
