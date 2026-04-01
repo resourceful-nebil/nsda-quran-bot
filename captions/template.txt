@@ -1,0 +1,7 @@
+<pre>print("#{{day}} DailyQuran")</pre>
+
+Can you identify which Surah and Ayah this is from ❓
+
+💬 Share your answer in the comments!
+
+✨ Special Recognition: If you answer correctly for a week, you'll be featured as our 'Weekly Quran Champion'

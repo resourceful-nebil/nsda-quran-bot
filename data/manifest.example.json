@@ -1,0 +1,6 @@
+{
+  "videos": [
+    "https://your-cdn-or-bucket.example.com/daily/001.mp4",
+    "https://your-cdn-or-bucket.example.com/daily/002.mp4"
+  ]
+}
