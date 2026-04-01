@@ -2,19 +2,13 @@
 # For static manifest URLs only, swap the run step to: python main.py
 # and remove the yt-dlp install line. TikTok/IG often fail here without cookies —
 # prefer running tools/daily_social_post.py on your PC with Task Scheduler if needed.
-#
-# push → runs on every push to main (good for one-time verify). Remove the push:
-# block after Actions works so normal commits do not post another video.
 
 name: Daily Quran post
 
 on:
-  push:
-    branches:
-      - main
   schedule:
-    # UTC only. Example: 05:30 UTC daily. Change after verifying — see README "Daily time".
-    - cron: "30 5 * * *"
+    # 20:00 UTC = 23:00 (11:00 PM) in UTC+3 (e.g. Addis Ababa). GitHub cron is UTC-only.
+    - cron: "0 20 * * *"
   workflow_dispatch:
 
 concurrency:

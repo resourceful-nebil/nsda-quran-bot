@@ -110,9 +110,10 @@ Copy **`data/manifest.example.json`** to **`data/manifest.json`** and fill in UR
 
 Workflow: **`.github/workflows/daily-quran.yml`**
 
-- **On push to `main`:** the workflow also runs so you can **verify** Actions right after a push (it will post one video like a scheduled run). **Remove the `push:` block** from the YAML once you are satisfied, so ordinary commits do not trigger an extra post.
-- **Schedule:** cron `30 5 * * *` = 05:30 **UTC** every day. GitHub only supports **UTC**; convert your local “I want 7:00 AM in city X” to UTC and edit the `cron` line. [crontab.guru](https://crontab.guru/) explains the five fields (`minute hour day-of-month month day-of-week`).
-- **Manual run:** Actions tab → **Daily Quran post** → **Run workflow** (useful anytime without waiting for cron).
+- **Schedule:** cron `0 20 * * *` = **20:00 UTC every day** = **23:00 (11:00 PM) in UTC+3** (e.g. Addis Ababa). Ethiopia does not use daylight saving, so that stays aligned. GitHub only accepts **UTC** in `cron`; change the hour if you move timezone. [crontab.guru](https://crontab.guru/#0_20_*_*_*) decodes the five fields.
+- **Manual run:** Actions tab → **Daily Quran post** → **Run workflow** (any time, no wait for cron).
+
+**Will it really run daily?** For a normal active repo: **yes** — one run per day at the scheduled UTC time (GitHub may start it a few minutes late when load is high). Requirements: Actions stay **enabled**, this workflow file stays on the **default branch** (usually `main`), and secrets remain set. If a run **fails** (e.g. TikTok blocks the runner), nothing posts that day until the next successful run. Very long **inactive** repositories can have scheduled workflows **disabled by GitHub** until you turn them back on in the Actions tab.
 
 **Secrets** (repository → Settings → Secrets and variables → Actions):
 
