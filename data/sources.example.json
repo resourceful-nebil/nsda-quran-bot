@@ -1,0 +1,19 @@
+{
+  "slots": [
+    {
+      "name": "tiktok_creator_a",
+      "url": "https://www.tiktok.com/@theirhandle"
+    },
+    {
+      "name": "youtube_shorts_b",
+      "url": "https://www.youtube.com/@TheirChannel/shorts"
+    },
+    {
+      "name": "instagram_reels_c",
+      "url": "https://www.instagram.com/theirhandle/reels/"
+    }
+  ],
+  "max_playlist_scan": 80,
+  "yt_dlp_extra_args": [],
+  "cookies_from_browser": null
+}
