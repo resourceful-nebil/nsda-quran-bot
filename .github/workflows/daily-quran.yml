@@ -2,11 +2,18 @@
 # For static manifest URLs only, swap the run step to: python main.py
 # and remove the yt-dlp install line. TikTok/IG often fail here without cookies —
 # prefer running tools/daily_social_post.py on your PC with Task Scheduler if needed.
+#
+# push → runs on every push to main (good for one-time verify). Remove the push:
+# block after Actions works so normal commits do not post another video.
 
 name: Daily Quran post
 
 on:
+  push:
+    branches:
+      - main
   schedule:
+    # UTC only. Example: 05:30 UTC daily. Change after verifying — see README "Daily time".
     - cron: "30 5 * * *"
   workflow_dispatch:
 
@@ -30,9 +37,7 @@ jobs:
           cache-dependency-path: requirement.txt
 
       - name: Install dependencies
-        run: |
-          pip install -r requirement.txt
-          pip install yt-dlp
+        run: pip install -r requirement.txt
 
       - name: Post to Telegram
         env:
