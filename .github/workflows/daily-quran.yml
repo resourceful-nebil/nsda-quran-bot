@@ -8,10 +8,10 @@ name: Daily Quran post
 on:
   # GitHub's schedule is best-effort and often delayed or skipped; keep it as backup.
   schedule:
-    # 20:45 UTC = 23:45 (11:45 PM) in UTC+3 (e.g. Addis Ababa). GitHub cron is UTC-only.
-    - cron: "45 20 * * *"
+    # 02:00 UTC = 05:00 (5:00 AM) in UTC+3 (e.g. Addis Ababa — around Fajr). GitHub cron is UTC-only.
+    - cron: "0 2 * * *"
   workflow_dispatch:
-  # Reliable daily trigger: call from external cron (e.g. cron-job.org) at your local 11:45 PM.
+  # Reliable daily trigger: call from external cron (e.g. cron-job.org) at your local 5:00 AM.
   # See README "When schedule does not run".
   repository_dispatch:
     types: [daily_quran_post]

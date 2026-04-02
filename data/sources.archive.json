@@ -1,0 +1,9 @@
+{
+  "_description": "Slots not in sources.json. Copy any object into sources.json \"slots\" to re-enable.",
+  "slots": [
+    {
+      "name": "huzaifadailyverses_tiktok",
+      "url": "https://www.tiktok.com/@huzaifadailyverses"
+    }
+  ]
+}

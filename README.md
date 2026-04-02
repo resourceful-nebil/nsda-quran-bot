@@ -110,24 +110,24 @@ Copy **`data/manifest.example.json`** to **`data/manifest.json`** and fill in UR
 
 Workflow: **`.github/workflows/daily-quran.yml`**
 
-- **Schedule:** cron `45 20 * * *` = **20:45 UTC every day** = **23:45 (11:45 PM) in UTC+3** (e.g. Addis Ababa). Ethiopia does not use daylight saving, so that stays aligned. GitHub only accepts **UTC** in `cron`; change the hour if you move timezone. [crontab.guru](https://crontab.guru/#45_20_*_*_*) decodes the five fields.
+- **Schedule:** cron `0 2 * * *` = **02:00 UTC every day** = **05:00 (5:00 AM) in UTC+3** (e.g. Addis Ababa, around Fajr). Ethiopia does not use daylight saving. GitHub only accepts **UTC** in `cron`. [crontab.guru](https://crontab.guru/#0_2_*_*_*) decodes the five fields.
 - **Manual run:** Actions tab → **Daily Quran post** → **Run workflow** (any time, no wait for cron).
 
 **Will it really run daily?** For a normal active repo: **yes** — one run per day at the scheduled UTC time (GitHub may start it a few minutes late when load is high). Requirements: Actions stay **enabled**, this workflow file stays on the **default branch** (usually `main`), and secrets remain set. If a run **fails** (e.g. TikTok blocks the runner), nothing posts that day until the next successful run. Very long **inactive** repositories can have scheduled workflows **disabled by GitHub** until you turn them back on in the Actions tab.
 
-**First night had no scheduled run:** The timer only fires at **the next** `cron` time **after** this workflow (with `schedule:`) exists on **`main`**. If you merged **after** that day’s 20:45 UTC (11:45 PM Addis), the first automatic run is **the following** day at the same UTC time — GitHub does not backfill. Use **Run workflow** anytime to test. In the Actions UI, click **“Daily Quran post”** in the left sidebar to see this workflow’s runs; the event column shows **scheduled** vs **push**.
+**First night had no scheduled run:** The timer only fires at **the next** `cron` time **after** this workflow (with `schedule:`) exists on **`main`**. If you merged **after** that day’s 02:00 UTC (5:00 AM Addis), the first automatic run is **the following** day at the same UTC time — GitHub does not backfill. Use **Run workflow** anytime to test. In the Actions UI, click **“Daily Quran post”** in the left sidebar to see this workflow’s runs; the event column shows **scheduled** vs **push**.
 
 **When `schedule` never runs (push / “Run workflow” work):** GitHub’s cron is **not guaranteed** for every repo; runs can be **skipped or delayed a long time**, especially on **private** repositories. Check **Settings → Actions → General** (Actions enabled, **Read and write** permissions for workflows). If it still never shows a **scheduled** event, use the **reliable trigger** below instead of relying on `schedule` alone.
 
 ### Reliable daily time (recommended): `repository_dispatch` + external cron
 
-The workflow also listens for **`repository_dispatch`** with event type **`daily_quran_post`**. Any service that can send one HTTPS POST per day at **your** local 11:45 PM can start the **same** job (install, post, commit).
+The workflow also listens for **`repository_dispatch`** with event type **`daily_quran_post`**. Any service that can send one HTTPS POST per day at **your** local **5:00 AM** (or any time you choose) can start the **same** job (install, post, commit).
 
 1. Create a **Personal Access Token** (GitHub → Settings → Developer settings):
    - **Classic:** enable scope **`repo`** (private repo) or **`public_repo`** (public only).
    - Or a **fine-grained** token with **Contents: Read** on this repository (and permission to create repository dispatch events — GitHub documents the exact box as *Contents* access for dispatch; if dispatch fails, use classic `repo`).
 
-2. On [cron-job.org](https://cron-job.org) (or similar): create a job with timezone **Africa/Addis_Ababa**, schedule **23:45** daily, **URL**:
+2. On [cron-job.org](https://cron-job.org) (or similar): create a job with timezone **Africa/Addis_Ababa**, schedule **05:00** daily, **URL**:
 
    `https://api.github.com/repos/YOUR_USER/nsda-quran-bot/dispatches`
 
