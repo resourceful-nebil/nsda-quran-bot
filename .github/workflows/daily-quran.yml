@@ -29,26 +29,51 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Skip second run same calendar day (Africa/Addis_Ababa) when both GitHub schedule
+      # and external cron (cron-job.org) fire. workflow_dispatch always runs.
+      - name: Check if already posted today
+        id: check_post
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "already_posted=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          TODAY=$(TZ="Africa/Addis_Ababa" date +'%Y-%m-%d')
+          if [ -f last_post.txt ]; then
+            LAST=$(tr -d '[:space:]' < last_post.txt)
+            if [ "$LAST" = "$TODAY" ]; then
+              echo "already_posted=true" >> "$GITHUB_OUTPUT"
+              echo "Already posted today ($TODAY, Addis). Skipping remaining steps."
+              exit 0
+            fi
+          fi
+          echo "already_posted=false" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-python@v5
+        if: steps.check_post.outputs.already_posted != 'true'
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: requirement.txt
 
       - name: Install dependencies
+        if: steps.check_post.outputs.already_posted != 'true'
         run: pip install -r requirement.txt
 
       - name: Post to Telegram
+        if: steps.check_post.outputs.already_posted != 'true'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
         run: python tools/daily_social_post.py
 
-      - name: Commit counter and ingest state
+      - name: Commit state and last post date
+        if: steps.check_post.outputs.already_posted != 'true'
         run: |
+          TZ="Africa/Addis_Ababa" date +'%Y-%m-%d' > last_post.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/counter.json data/ingest_state.json
+          git add data/counter.json data/ingest_state.json last_post.txt
           if git diff --staged --quiet; then
             echo "No state changes to commit."
           else
