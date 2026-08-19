@@ -69,10 +69,14 @@ jobs:
 
       - name: Commit state and last post date
         if: steps.check_post.outputs.already_posted != 'true'
+        env:
+          # Optional overrides; if unset, use the triggering user's GitHub noreply identity.
+          GIT_COMMIT_NAME: ${{ secrets.GIT_COMMIT_NAME }}
+          GIT_COMMIT_EMAIL: ${{ secrets.GIT_COMMIT_EMAIL }}
         run: |
           TZ="Africa/Addis_Ababa" date +'%Y-%m-%d' > last_post.txt
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "${GIT_COMMIT_NAME:-${{ github.actor }}}"
+          git config user.email "${GIT_COMMIT_EMAIL:-${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com}"
           git add data/counter.json data/ingest_state.json last_post.txt
           if git diff --staged --quiet; then
             echo "No state changes to commit."

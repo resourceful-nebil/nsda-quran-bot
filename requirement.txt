@@ -1,3 +1,6 @@
 requests>=2.28.0
 python-dotenv>=1.0.0
-yt-dlp>=2024.1.0
+# curl-cffi lets yt-dlp impersonate a browser TLS fingerprint (TikTok/IG).
+# Pin <0.16: yt-dlp 2026.7.x does not treat 0.16 as a valid impersonate backend.
+yt-dlp>=2026.7.4
+curl-cffi>=0.13,<0.16

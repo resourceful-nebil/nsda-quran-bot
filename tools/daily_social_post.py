@@ -21,7 +21,9 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import random
+import re
 import shutil
 import subprocess
 import sys
@@ -45,6 +47,10 @@ SOURCES_PATH = ROOT / "data" / "sources.json"
 STATE_PATH = ROOT / "data" / "ingest_state.json"
 MAX_POSTED_IDS = 3000
 """Trim ``posted_ids`` to this length (oldest dropped) to keep JSON small."""
+_YTDLP_SCHEME = re.compile(r"^[a-zA-Z][a-zA-Z0-9_+-]*:.+")
+"""http(s) URLs plus yt-dlp native schemes such as ``tiktokuser:<secUid>``."""
+_COOKIES_TMP: Path | None = None
+"""Netscape cookies file written from ``YTDLP_COOKIES`` for this process."""
 
 
 def ytdlp_argv() -> list[str]:
@@ -67,6 +73,51 @@ def ytdlp_argv() -> list[str]:
     if importlib.util.find_spec("yt_dlp") is not None:
         return [sys.executable, "-m", "yt_dlp"]
     raise RuntimeError("yt-dlp not found. Install: python -m pip install yt-dlp")
+
+
+def is_slot_url(url: object) -> bool:
+    """
+    True if ``url`` is a webpage URL or a yt-dlp extractor URI.
+
+    ``https://www.tiktok.com/@handle`` works until TikTok hides ``secUid`` on the
+    public profile page. Then yt-dlp's workaround is ``tiktokuser:<secUid>``,
+    which is not ``http`` — we still have to accept it.
+    """
+    if not isinstance(url, str):
+        return False
+    u = url.strip()
+    if u.startswith(("http://", "https://")):
+        return True
+    return bool(_YTDLP_SCHEME.match(u))
+
+
+def cookies_cli_args(cookies_browser: str | None) -> list[str]:
+    """
+    yt-dlp cookie flags: file secret first, then browser name from sources.json.
+
+    Order:
+    1. ``YTDLP_COOKIES_FILE`` — path already on disk (GitHub Actions temp file).
+    2. ``YTDLP_COOKIES`` — Netscape cookies.txt contents (repo secret / ``.env``).
+    3. ``cookies_from_browser`` — local Chrome/Edge/Firefox (not on hosted runners).
+
+    Returns:
+        Zero or two argv tokens, e.g. ``["--cookies", "C:/tmp/cookies.txt"]``.
+    """
+    global _COOKIES_TMP
+    path = (os.environ.get("YTDLP_COOKIES_FILE") or "").strip()
+    if path:
+        return ["--cookies", path]
+    raw = os.environ.get("YTDLP_COOKIES")
+    if raw and raw.strip():
+        if _COOKIES_TMP is None:
+            fd, tmp = tempfile.mkstemp(prefix="ytdlp_cookies_", suffix=".txt")
+            os.close(fd)
+            _COOKIES_TMP = Path(tmp)
+            _COOKIES_TMP.write_text(raw, encoding="utf-8")
+        return ["--cookies", str(_COOKIES_TMP)]
+    if cookies_browser:
+        return ["--cookies-from-browser", cookies_browser]
+    return []
 
 
 def run_ytdlp(args: list[str], *, cwd: Path) -> None:
@@ -116,12 +167,12 @@ def playlist_flat_json(
         "--flat-playlist",
         "--playlist-end",
         str(max_end),
-        "--no-warnings",
         *extra,
         playlist_url,
     ]
-    if cookies_browser:
-        args = ["--cookies-from-browser", cookies_browser, *args]
+    cookie_args = cookies_cli_args(cookies_browser)
+    if cookie_args:
+        args = [*cookie_args, *args]
 
     cmd = [*ytdlp_argv(), *args]
     p = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True)
@@ -193,19 +244,20 @@ def pick_one_video(
     """
     n = len(slots)
     tries = 0
-    last_err: str | None = None
 
     while tries < n:
         slot = slots[slot_index]
         url = slot.get("url")
-        if not isinstance(url, str) or not url.startswith("http"):
-            print(f"Invalid slot url at index {slot_index}: {slot!r}", file=sys.stderr)
-            return None
         label = str(slot.get("name") or url)
+        if not is_slot_url(url):
+            print(f"Invalid slot url at index {slot_index}: {slot!r}", file=sys.stderr)
+            slot_index = (slot_index + 1) % n
+            tries += 1
+            continue
         try:
             blob = playlist_flat_json(url, max_scan, extra, cookies_browser)
         except Exception as e:
-            last_err = str(e)
+            print(f"Slot '{label}' list failed: {e}", file=sys.stderr)
             slot_index = (slot_index + 1) % n
             tries += 1
             continue
@@ -222,14 +274,13 @@ def pick_one_video(
                 continue
             return (e, k, w, slot_index, label)
 
-        last_err = (
-            f"No new videos in slot '{label}' (raise max_playlist_scan, add slots, or allow repeats)."
+        print(
+            f"No new videos in slot '{label}' (raise max_playlist_scan, add slots, or allow repeats).",
+            file=sys.stderr,
         )
         slot_index = (slot_index + 1) % n
         tries += 1
 
-    if last_err:
-        print(last_err, file=sys.stderr)
     return None
 
 
@@ -308,8 +359,9 @@ def main() -> int:
         *extra,
         watch_url,
     ]
-    if cookies_browser:
-        dl_args = ["--cookies-from-browser", cookies_browser, *dl_args]
+    cookie_args = cookies_cli_args(cookies_browser)
+    if cookie_args:
+        dl_args = [*cookie_args, *dl_args]
 
     try:
         run_ytdlp(dl_args, cwd=ROOT)

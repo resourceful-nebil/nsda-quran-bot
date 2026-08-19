@@ -61,7 +61,7 @@ Automates **one video post per day** to a Telegram **channel**: caption from a t
 
 **yt-dlp on Windows:** the script uses `yt-dlp` on PATH if present; otherwise **`python -m yt_dlp`** so it works even when `Scripts` is not on PATH.
 
-**TikTok / Instagram:** often need a logged-in session. In `sources.json` set `"cookies_from_browser": "chrome"` (or `edge`, `firefox`) and run **locally** with that browser installed. GitHub-hosted runners frequently fail for these sites without extra setup.
+**TikTok / Instagram:** need a logged-in session more often now (yt-dlp cannot read `secUid` from a blocked profile page). Locally: `"cookies_from_browser": "chrome"` (or `edge` / `firefox`) in `sources.json`, browser closed so the cookie DB can be copied. For GitHub Actions: export Netscape `cookies.txt` and store the file contents as secret **`YTDLP_COOKIES`**. If a handle still fails, paste a video URL into `yt-dlp --print channel_id VIDEO_URL` and set the slot `url` to `tiktokuser:<that_id>`.
 
 **Run locally:**
 
@@ -176,8 +176,8 @@ Requires `yt-dlp` on PATH **or** install via pip and use the same terminal where
 | Issue | What to try |
 |-------|-------------|
 | `python` not found (Windows) | Reopen terminal after install; disable Store **app execution aliases** for `python.exe`; or use full path under `%LocalAppData%\Programs\Python\...`. |
-| yt-dlp / TikTok errors | Run locally; add `"cookies_from_browser": "chrome"` in `sources.json`; update yt-dlp: `python -m pip install -U yt-dlp`. |
-| GitHub Action fails on TikTok | Expected sometimes; run **social** script on a home PC + **Task Scheduler** daily, or use **manifest** + hosted MP4 URLs. |
+| yt-dlp / TikTok errors | Update deps (`pip install -U -r requirement.txt`); cookies (browser locally, or `YTDLP_COOKIES` in Actions); optional slot URL `tiktokuser:<channel_id>`. |
+| GitHub Action fails on TikTok | Add secret **`YTDLP_COOKIES`**, or run **social** on a PC + **Task Scheduler**, or switch to **manifest** + hosted MP4s. |
 | **`schedule` never fires** | GitHub cron is unreliable for some repos; use **repository_dispatch** + [cron-job.org](https://cron-job.org) (see README above). Confirm **Settings → Actions** enabled and workflow permissions **Read and write**. |
 | Video too large | Telegram bot upload limit (~50 MB); pick another clip or compress. |
 | Wrong channel | `TELEGRAM_CHANNEL_ID` must be the **channel** id (often negative `-100…`). |

@@ -4,6 +4,48 @@ This document describes how the project is structured, how data moves through it
 
 ---
 
+## High-level overview
+
+One glance at the full system: community-curated sources, daily automation, Telegram challenge.
+
+```mermaid
+flowchart TB
+  subgraph community [Community]
+    ACC["Quran creator accounts<br/>TikTok · Instagram · YouTube Shorts"]
+    CUR["Curate data/sources.json"]
+  end
+
+  subgraph schedule [Daily trigger]
+    CRON["GitHub Actions<br/>05:00 Addis Ababa"]
+    DISP["Manual / external cron<br/>repository_dispatch"]
+  end
+
+  subgraph bot [nsda-quran-bot]
+    PICK["Rotate slot · pick unseen video"]
+    DL["Download via yt-dlp"]
+    CAP["Caption #N DailyQuran"]
+    POST["Telegram sendVideo"]
+    STATE[("JSON state<br/>counter · ingest · sources")]
+  end
+
+  subgraph audience [Audience]
+    TG["Telegram channel"]
+    PLAY["Guess Surah & Ayah<br/>Weekly Quran Champion"]
+  end
+
+  CUR --> ACC
+  ACC --> PICK
+  CRON --> PICK
+  DISP --> PICK
+  STATE --> PICK
+  PICK --> DL --> CAP --> POST
+  POST --> TG
+  POST --> STATE
+  TG --> PLAY
+```
+
+---
+
 ## 1. Big picture
 
 Two independent ways to post one video per run to Telegram; both share **`posting.py`** for credentials, captions, and `sendVideo`.
