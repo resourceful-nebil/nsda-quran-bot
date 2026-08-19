@@ -120,6 +120,80 @@ def cookies_cli_args(cookies_browser: str | None) -> list[str]:
     return []
 
 
+def default_ytdlp_extra(extra: list[str]) -> list[str]:
+    """
+    Prepend YouTube-friendly flags unless ``sources.json`` already set them.
+
+    GitHub-hosted runners use datacenter IPs. YouTube often answers those with
+    "Sign in to confirm you're not a bot" on *download* even when listing worked.
+    Impersonation + extra player clients are a cheap first try; cookies still win
+    if YouTube distrusts the IP entirely.
+    """
+    joined = " ".join(extra)
+    out = list(extra)
+    if "--impersonate" not in extra:
+        out = ["--impersonate", "chrome", *out]
+    if "youtube:player_client" not in joined:
+        out = [
+            "--extractor-args",
+            "youtube:player_client=default,android,web",
+            *out,
+        ]
+    return out
+
+
+def download_clip(
+    watch_url: str,
+    extra: list[str],
+    cookies_browser: str | None,
+) -> Path | None:
+    """
+    Download one watch URL to a temp MP4 under ``data/``.
+
+    Returns:
+        Path to the file, or ``None`` if yt-dlp failed, produced nothing, or
+        the file is over the Telegram bot size limit (~49 MB). Caller must
+        delete the parent temp dir when done (success or skip).
+    """
+    tmpdir = Path(tempfile.mkdtemp(prefix="dq_", dir=ROOT / "data"))
+    out_tmpl = str(tmpdir / "clip.%(id)s.%(ext)s")
+    dl_args = [
+        "-f",
+        "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+        "--merge-output-format",
+        "mp4",
+        "-o",
+        out_tmpl,
+        "--no-warnings",
+        *extra,
+        watch_url,
+    ]
+    cookie_args = cookies_cli_args(cookies_browser)
+    if cookie_args:
+        dl_args = [*cookie_args, *dl_args]
+    try:
+        run_ytdlp(dl_args, cwd=ROOT)
+    except Exception as e:
+        print(e, file=sys.stderr)
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        return None
+    files = sorted(tmpdir.glob("clip.*"))
+    if not files:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        print("yt-dlp produced no file.", file=sys.stderr)
+        return None
+    video_path = files[0]
+    size_mb = video_path.stat().st_size / (1024 * 1024)
+    if size_mb > 49:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        print(
+            f"File too large for Telegram bot (~{size_mb:.1f} MB). Trying another clip.",
+            file=sys.stderr,
+        )
+        return None
+    return video_path
+
+
 def run_ytdlp(args: list[str], *, cwd: Path) -> None:
     """
     Run yt-dlp with the given arguments; raise if exit code is non-zero.
@@ -317,6 +391,7 @@ def main() -> int:
     if not isinstance(extra, list):
         extra = []
     extra = [str(x) for x in extra]
+    extra = default_ytdlp_extra(extra)
     cookies_browser = cfg.get("cookies_from_browser")
     if cookies_browser is not None:
         cookies_browser = str(cookies_browser).strip() or None
@@ -325,62 +400,40 @@ def main() -> int:
     slot_index = int(state.get("slot_index", 0)) % len(slots)
     posted: set[str] = set(state.get("posted_ids") or [])
 
+    skip: set[str] = set(posted)
     picked = None
+    video_path: Path | None = None
+    chosen: dict = {}
+    chosen_key = ""
+    used_slot_index = slot_index
+    slot_label = ""
+
     for allow_reset in (False, True):
-        picked = pick_one_video(slots, posted, slot_index, max_scan, extra, cookies_browser)
-        if picked is not None:
+        for _ in range(8):
+            picked = pick_one_video(slots, skip, slot_index, max_scan, extra, cookies_browser)
+            if picked is None:
+                break
+            chosen, chosen_key, watch_url, used_slot_index, slot_label = picked
+            print(f"Trying [{slot_label}] {watch_url}", file=sys.stderr)
+            video_path = download_clip(watch_url, extra, cookies_browser)
+            if video_path is not None:
+                break
+            skip.add(chosen_key)
+        if video_path is not None:
             break
         if not allow_reset:
             print(
-                "Could not pick a new video; clearing posted_ids once to allow repeats.",
+                "Could not pick/download a new video; clearing posted_ids once to allow repeats.",
                 file=sys.stderr,
             )
+            skip = set()
             posted = set()
             state["posted_ids"] = []
             slot_index = 0
 
-    if picked is None:
+    if video_path is None:
         print("Still no video. Fix sources.json, cookies, or yt-dlp.", file=sys.stderr)
         save_state(state)
-        return 1
-
-    chosen, chosen_key, watch_url, used_slot_index, slot_label = picked
-
-    tmpdir = Path(tempfile.mkdtemp(prefix="dq_", dir=ROOT / "data"))
-    out_tmpl = str(tmpdir / "clip.%(id)s.%(ext)s")
-    dl_args = [
-        "-f",
-        "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-        "--merge-output-format",
-        "mp4",
-        "-o",
-        out_tmpl,
-        "--no-warnings",
-        *extra,
-        watch_url,
-    ]
-    cookie_args = cookies_cli_args(cookies_browser)
-    if cookie_args:
-        dl_args = [*cookie_args, *dl_args]
-
-    try:
-        run_ytdlp(dl_args, cwd=ROOT)
-    except Exception as e:
-        print(e, file=sys.stderr)
-        shutil.rmtree(tmpdir, ignore_errors=True)
-        return 1
-
-    files = sorted(tmpdir.glob("clip.*"))
-    if not files:
-        shutil.rmtree(tmpdir, ignore_errors=True)
-        print("yt-dlp produced no file.", file=sys.stderr)
-        return 1
-
-    video_path = files[0]
-    size_mb = video_path.stat().st_size / (1024 * 1024)
-    if size_mb > 49:
-        shutil.rmtree(tmpdir, ignore_errors=True)
-        print(f"File too large for Telegram bot (~{size_mb:.1f} MB). Skip or compress.", file=sys.stderr)
         return 1
 
     counter = read_json(COUNTER_PATH)
@@ -390,7 +443,7 @@ def main() -> int:
         caption = render_caption(day)
         send_video(token, chat_id, video_path=video_path, caption=caption)
     finally:
-        shutil.rmtree(tmpdir, ignore_errors=True)
+        shutil.rmtree(video_path.parent, ignore_errors=True)
 
     counter["day"] = day + 1
     if "index" in counter:

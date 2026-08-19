@@ -65,6 +65,9 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          # Optional Netscape cookies.txt (dummy Google account). GitHub IPs often
+          # cannot download YouTube without this: "Sign in to confirm you're not a bot".
+          YTDLP_COOKIES: ${{ secrets.YTDLP_COOKIES }}
         run: python tools/daily_social_post.py
 
       - name: Commit state and last post date
