@@ -298,6 +298,7 @@ def pick_one_video(
     max_scan: int,
     extra: list[str],
     cookies_browser: str | None,
+    skip_slots: set[int] | None = None,
 ) -> tuple[dict, str, str, int, str] | None:
     """
     Try each slot in rotation starting at ``slot_index`` until one yields a candidate.
@@ -311,6 +312,7 @@ def pick_one_video(
         max_scan: ``--playlist-end`` value.
         extra: Extra yt-dlp args.
         cookies_browser: Optional browser name for cookies.
+        skip_slots: Slot indexes whose download already failed this run.
 
     Returns:
         Tuple ``(entry, chosen_key, watch_url, used_slot_index, slot_label)``, or
@@ -318,8 +320,13 @@ def pick_one_video(
     """
     n = len(slots)
     tries = 0
+    burned = skip_slots or set()
 
     while tries < n:
+        if slot_index in burned:
+            slot_index = (slot_index + 1) % n
+            tries += 1
+            continue
         slot = slots[slot_index]
         url = slot.get("url")
         label = str(slot.get("name") or url)
@@ -401,6 +408,7 @@ def main() -> int:
     posted: set[str] = set(state.get("posted_ids") or [])
 
     skip: set[str] = set(posted)
+    burned_slots: set[int] = set()
     picked = None
     video_path: Path | None = None
     chosen: dict = {}
@@ -409,8 +417,10 @@ def main() -> int:
     slot_label = ""
 
     for allow_reset in (False, True):
-        for _ in range(8):
-            picked = pick_one_video(slots, skip, slot_index, max_scan, extra, cookies_browser)
+        for _ in range(max(8, len(slots))):
+            picked = pick_one_video(
+                slots, skip, slot_index, max_scan, extra, cookies_browser, burned_slots
+            )
             if picked is None:
                 break
             chosen, chosen_key, watch_url, used_slot_index, slot_label = picked
@@ -419,6 +429,12 @@ def main() -> int:
             if video_path is not None:
                 break
             skip.add(chosen_key)
+            burned_slots.add(used_slot_index)
+            slot_index = (used_slot_index + 1) % len(slots)
+            print(
+                f"Download failed; skipping rest of slot '{slot_label}'.",
+                file=sys.stderr,
+            )
         if video_path is not None:
             break
         if not allow_reset:
@@ -428,6 +444,7 @@ def main() -> int:
             )
             skip = set()
             posted = set()
+            burned_slots = set()
             state["posted_ids"] = []
             slot_index = 0
 
